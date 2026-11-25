@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ronimate — Video to R15 Animation</title>
+    <meta name="description" content="Turn a video of a person into an editable Roblox Studio R15 animated rig." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='11' y='2' width='10' height='9' rx='3' fill='%23f5cd30'/%3E%3Crect x='9' y='12' width='14' height='9' rx='1' fill='%230d69ac'/%3E%3Crect x='9' y='22' width='6' height='9' rx='1' fill='%234b974b'/%3E%3Crect x='17' y='22' width='6' height='9' rx='1' fill='%234b974b'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <h1>Ronimate</h1>
+          <p>Video → Roblox R15 animated rig</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <label class="btn ghost" title="Load a capture you saved earlier (skips re-analysis)">
+          Load capture
+          <input id="captureInput" type="file" accept=".json,application/json" hidden />
+        </label>
+        <button id="helpBtn" class="btn ghost">How to import into Studio</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="stage">
+        <div class="panes">
+          <div class="pane" id="videoPane">
+            <div class="pane-label">
+              <span>Source video</span>
+              <label class="mini-toggle"><input type="checkbox" id="overlayToggle" checked /> skeleton</label>
+            </div>
+            <div id="dropZone" class="drop">
+              <div class="drop-inner">
+                <div class="drop-icon" aria-hidden="true">▶</div>
+                <strong>Drop a video here</strong>
+                <span>or</span>
+                <label class="btn primary">
+                  Choose video
+                  <input id="videoInput" type="file" accept="video/*" hidden />
+                </label>
+                <small>One person, whole body in frame, steady camera. Nothing is uploaded — it all runs in your browser.</small>
+              </div>
+            </div>
+            <div class="video-wrap" hidden>
+              <video id="video" playsinline muted preload="auto"></video>
+              <canvas id="overlay"></canvas>
+              <label class="replace btn ghost small">
+                Replace
+                <input id="videoInput2" type="file" accept="video/*" hidden />
+              </label>
+            </div>
+          </div>
+          <div class="pane" id="rigPane">
+            <div class="pane-label">
+              <span>R15 preview <em id="rigHint">(rest pose)</em></span>
+              <span class="pane-tools">
+                <label class="mini-toggle"><input type="checkbox" id="followToggle" checked /> follow</label>
+                <button id="camView" class="btn ghost small" title="See the rig from the original camera's point of view">Camera view</button>
+                <button id="resetCam" class="btn ghost small">Reset view</button>
+              </span>
+            </div>
+            <div id="viewer" class="viewer"></div>
+          </div>
+        </div>
+
+        <div class="transport">
+          <button id="playBtn" class="btn round" disabled aria-label="Play">▶</button>
+          <button id="stepBack" class="btn ghost small" disabled title="Previous frame (←)">◀︎</button>
+          <button id="stepFwd" class="btn ghost small" disabled title="Next frame (→)">▶︎</button>
+          <div class="scrub">
+            <canvas id="confStrip" title="Tracking confidence — red means the pose was guessed"></canvas>
+            <input id="scrubber" type="range" min="0" max="1" step="0.001" value="0" disabled />
+          </div>
+          <span id="timeLabel" class="time">0.00 / 0.00 s</span>
+          <button id="trimStartBtn" class="btn ghost small" disabled title="Start the animation at the current time">[ Set start</button>
+          <button id="trimEndBtn" class="btn ghost small" disabled title="End the animation at the current time">Set end ]</button>
+          <button id="trimReset" class="btn ghost small" disabled>Reset trim</button>
+        </div>
+
+        <div class="analyze">
+          <label>Tracking model
+            <select id="modelSelect">
+              <option value="heavy" selected>Heavy — most accurate</option>
+              <option value="full">Full — balanced</option>
+              <option value="lite">Lite — fastest</option>
+            </select>
+          </label>
+          <label>Sample rate
+            <select id="fpsSelect">
+              <option value="24">24 fps</option>
+              <option value="30" selected>30 fps</option>
+              <option value="60">60 fps</option>
+            </select>
+          </label>
+          <button id="analyzeBtn" class="btn primary" disabled>Analyze video</button>
+          <button id="cancelBtn" class="btn ghost" hidden>Cancel</button>
+          <div class="progress" hidden><div class="bar"></div></div>
+          <span id="status" class="status">Choose a video to begin.</span>
+        </div>
+
+        <dl id="stats" class="stats"></dl>
+      </section>
+
+      <aside class="panel">
+        <nav class="tabs" role="tablist">
+          <button class="tab active" data-tab="motion" role="tab">Motion</button>
+          <button class="tab" data-tab="joints" role="tab">Joints</button>
+          <button class="tab" data-tab="export" role="tab">Export</button>
+        </nav>
+        <div class="tab-body" id="tab-motion"></div>
+        <div class="tab-body" id="tab-joints" hidden></div>
+        <div class="tab-body" id="tab-export" hidden></div>
+      </aside>
+    </main>
+
+    <dialog id="helpDialog">
+      <form method="dialog">
+        <h2>Bring the animation into Roblox Studio</h2>
+        <ol>
+          <li><b>Export ▸ Rig + animation (.rbxmx)</b> downloads an R15 rig with the animation saved inside it.</li>
+          <li>In Studio, right-click <b>Workspace</b> in the Explorer ▸ <b>Insert from File…</b> and pick the file (or drag the file onto the viewport).</li>
+          <li>Open <b>Avatar ▸ Animation Editor</b>, click the rig, then in the editor's <b>⋯</b> menu choose <b>Load</b> and pick your animation.</li>
+          <li>Every keyframe is now editable — move joints, delete keys, change easing — then <b>Publish to Roblox</b> to get an Animation ID.</li>
+        </ol>
+        <h3>Using your own avatar or rig instead</h3>
+        <p>Download the <b>Command Bar script</b>, select your R15 model in Studio, open <b>View ▸ Command Bar</b>, paste the script and press Enter. The animation is added to that model's <code>AnimSaves</code> (or a fresh rig is created if nothing is selected). You can also insert the <b>KeyframeSequence only</b> file and drag it into your rig's <code>AnimSaves</code>.</p>
+        <h3>Getting the most accurate result</h3>
+        <ul>
+          <li>One person, whole body visible (feet included), camera on a tripod, good light.</li>
+          <li>Facing the camera or at an angle works best; pure side views lose depth.</li>
+          <li>Use the <b>Heavy</b> model. Check the red parts of the timeline — those frames were guessed.</li>
+          <li>Fix leftovers in <b>Joints</b> (per-joint offsets) or later in the Animation Editor.</li>
+        </ul>
+        <div class="dialog-actions"><button class="btn primary">Got it</button></div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
